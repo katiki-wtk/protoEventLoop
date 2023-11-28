@@ -9,84 +9,190 @@
 #include <tuple>
 #include <vector>
 
-#include "eventloop.h"
-
-class Receiver;
+namespace test
+{
 
 
 /*!
- * \brief La classe GenericSignal gere des signaux n'importe quel type de classe
+ *
+ *  NOTE: Un Signal peut etre utilise dans plusieurs Connection !
+ *
  */
-template <typename Class, typename... Args>
-class GenericSignal
+
+struct ConnectionBase;
+
+struct SignalBase
 {
-public:
-    // Declaration de pointeur de methode membre de Receiver
-    using SlotFunction = void (Class::*)(Args...);
+    struct Slot
+    {
+        void *obj {nullptr};
+        void *func {nullptr};
+    };
 
-    using QueuedSlots = std::tuple<EventLoop *, std::pair<Class*, SlotFunction>>;
+    SignalBase() = default;
+    ~SignalBase();
+    SignalBase(SignalBase&& other) noexcept;
+    SignalBase& operator= (SignalBase&& other) noexcept;
 
-    void connect(Class* recepteur, SlotFunction slot) {
-        m_slots.push_back(std::make_pair(recepteur, slot));
-    }
-
-    void connect(Class *recepteur, SlotFunction slot, EventLoop& eventLoop) {
-        m_queuedSlots.push_back(std::make_tuple(&eventLoop, std::make_pair(recepteur, slot)));
-    }
-
-    // Notification du signal avec un nombre variable d'arguments
-    void Emit(Args... args) {
-        for (const auto& qslot : m_queuedSlots) {
-            std::get<0>(qslot)->post([qslot, args...]() {
-                qDebug() << __FUNCTION__ << "EXECUTION FROM EVENTLOOP:";
-                auto& slot = std::get<1>(qslot);
-                (slot.first->*slot.second)(args...);
-
-            });
-        }
-
-        for (const auto& slot : m_slots) {
-            (slot.first->*slot.second)(args...);
-        }
-    }
-
-private:
-    std::vector<std::pair<Class*, SlotFunction>> m_slots;
-    std::vector<QueuedSlots> m_queuedSlots;
-};
+    SignalBase(const SignalBase&) = delete;
+    SignalBase& operator= (const SignalBase&) = delete;
 
 
+    std::vector<Slot> m_slots;
+    std::vector<ConnectionBase *> m_connections;
+    bool m_dirty {false};
 
-template<typename...Args>
-class Signal : public GenericSignal<Receiver, Args...>
-{
+
 
 };
 
+struct ConnectionBase
+{
+    SignalBase * m_signal {nullptr};
+    int m_index{0};
+
+    ConnectionBase(SignalBase *sig, int idx)
+        : m_signal(sig)
+        , m_index(idx)
+    {}
+
+    ~ConnectionBase()
+    {
+        // Destruction de la connection:
+        // Il faut signaler au signal que cette connection n'existe plus
+        // TODO: On pourrait passer des shared_ptr/weak_ptr...a voir ?
+        if (m_signal) {
+            m_signal->m_slots[m_index].obj = nullptr;
+            m_signal->m_slots[m_index].func = nullptr;
+            m_signal->m_connections[m_index] = nullptr;
+            m_signal->m_dirty = true;
+        }
+    }
+
+};
 
 /*!
- * \brief The Recepteur class
+ * \brief Connection est juste une enveloppe de ConnectionBase
+ * On peut rajouter d'autres methodes
  */
-class Receiver
+struct Connection
 {
-public:
-    Receiver() = default;
-
-    // Méthode de slot générique
-    void monSlot(int value) {
-        qDebug() << __FUNCTION__ << "Value: " << value;
-    }
-
-    void monSlot(int age, double money, std::string name) {
-        qDebug() << __FUNCTION__ << "Name: " << QString::fromStdString(name) << ", Age: " << age << ", Money: " << money;
-    }
-
-    void monSlot3(std::string ) {
-
-    }
-
+    ConnectionBase * data {nullptr};
 };
 
+SignalBase::SignalBase(SignalBase&& other) noexcept
+    : m_slots(std::move(other.m_slots))
+    , m_connections(std::move(other.m_connections))
+    , m_dirty(other.m_dirty)
+{
+    for (auto * connection : m_connections) {
+        if (connection) {
+            connection->m_signal = this;
+        }
+    }
+}
+
+SignalBase& SignalBase::operator= (SignalBase&& other) noexcept
+{
+    m_slots = std::move(other.m_slots);
+    m_connections = std::move(other.m_connections);
+    m_dirty = other.m_dirty;
+
+    for (auto * connection : m_connections) {
+        if (connection) {
+            connection->m_signal = this;
+        }
+    }
+
+    return *this;
+}
+
+SignalBase::~SignalBase()
+{
+    for (auto * connection : m_connections) {
+        if (connection) {
+            delete connection;
+        }
+    }
+}
+
+/*!
+ * \brief Signal accepte des parametres variadics definis par ...Args
+ */
+template <typename ... Args>
+struct Signal: public SignalBase
+{
+    /*!
+     * \brief notify execute les slots
+     * On peut passer d'autres arguments definis par CallArgs, le perfect forwarding devrait
+     * permettre de caster les arguments correctement
+     */
+    template <typename ...CallArgs>
+    void notify(CallArgs&& ...args)
+    {
+
+        for (auto i=0 ; i<m_slots.size() ; i++)
+        {
+            auto& slot = m_slots[i];
+            reinterpret_cast<void(*)(void*, Args...)>(slot.func)(&slot.obj, std::forward<CallArgs>(args)...);
+        }
+
+    }
+
+    template<auto FuncPtr, class Class>
+    Connection connect(Class* object)
+    {
+        // Prochain index dans les connections
+        size_t idx = m_connections.size();
+        auto& call = m_slots.emplace_back();
+
+        // Pour les pointeurs de fonction membre, on enveloppe son appel dans une lambda
+        // le +[] pour convertir la lambda en (void *). c.f. c++ specs <built.over>
+        call.obj = object;
+        call.func = reinterpret_cast<void*>(+[](void* obj, Args ... args) {((*reinterpret_cast<Class**>(obj))->*FuncPtr)(args...); });
+        ConnectionBase* conn = new ConnectionBase(this, idx);
+        m_connections.push_back(conn);
+        return { conn };
+    }
+};
+
+void test_signals()
+{
+    struct AnyReceiver
+    {
+        void anotherSlot(int a, double b) {
+            qDebug() << __FUNCTION__ << a << b;
+        }
+
+
+        void differentSlot(int a, int b) {
+            qDebug() << __FUNCTION__ << a << b;
+        }
+    };
+
+
+    struct PsuInterface {
+        void slot1(int a, double b) {
+            qDebug() << __FUNCTION__ << a << b;
+        }
+    };
+
+    Signal<int, double> mySignal;
+
+    AnyReceiver rcv;
+
+    PsuInterface psu;
+
+    mySignal.connect<&AnyReceiver::anotherSlot>(&rcv);
+    mySignal.connect<&AnyReceiver::differentSlot>(&rcv);
+    mySignal.connect<&PsuInterface::slot1>(&psu);
+
+
+    mySignal.notify(5, 28.8);
+
+}
+
+}
 
 
 
