@@ -12,6 +12,7 @@
 namespace test
 {
 
+struct ConnectionInfo;
 
 /*!
  *
@@ -19,14 +20,17 @@ namespace test
  *
  */
 
-struct ConnectionBase;
-
 struct SignalBase
 {
     struct Slot
     {
         void *obj {nullptr};
         void *func {nullptr};
+    };
+
+    struct ConnectionSlot {
+        ConnectionInfo * conn;
+        Slot slot;
     };
 
     SignalBase() = default;
@@ -37,84 +41,76 @@ struct SignalBase
     SignalBase(const SignalBase&) = delete;
     SignalBase& operator= (const SignalBase&) = delete;
 
-
-    std::vector<Slot> m_slots;
-    std::vector<ConnectionBase *> m_connections;
+    std::vector<ConnectionSlot> m_connections;
     bool m_dirty {false};
-
-
-
 };
 
-struct ConnectionBase
+
+
+struct ConnectionInfo
 {
     SignalBase * m_signal {nullptr};
     int m_index{0};
+    bool m_used {false};
 
-    ConnectionBase(SignalBase *sig, int idx)
+    ConnectionInfo(SignalBase *sig, int idx)
         : m_signal(sig)
         , m_index(idx)
     {}
 
-    ~ConnectionBase()
+    ~ConnectionInfo()
     {
         // Destruction de la connection:
         // Il faut signaler au signal que cette connection n'existe plus
         // TODO: On pourrait passer des shared_ptr/weak_ptr...a voir ?
         if (m_signal) {
-            m_signal->m_slots[m_index].obj = nullptr;
-            m_signal->m_slots[m_index].func = nullptr;
-            m_signal->m_connections[m_index] = nullptr;
+            m_signal->m_connections[m_index].conn = nullptr;
+            m_signal->m_connections[m_index].slot.obj = nullptr;
+            m_signal->m_connections[m_index].slot.func = nullptr;
             m_signal->m_dirty = true;
         }
     }
+};
 
+
+class BasicConnection
+{
+public:
+    BasicConnection(ConnectionInfo *data) noexcept
+        : m_data(data) {}
+
+   ~BasicConnection() = default;
+    BasicConnection(const BasicConnection&) = default;
+    BasicConnection(BasicConnection&&) = default;
+
+    ConnectionInfo * data() const {
+        return m_data;
+    }
+
+private:
+    ConnectionInfo * m_data {nullptr};
 };
 
 /*!
  * \brief Connection est juste une enveloppe de ConnectionBase
  * On peut rajouter d'autres methodes
  */
-struct Connection
+class Connection
 {
-    ConnectionBase * data {nullptr};
+public:
+    Connection(BasicConnection conn);
+   ~Connection();
+    Connection(Connection&& other) noexcept;
+
+    Connection(const Connection&) = delete;
+    Connection& operator = (const Connection&) = delete;
+    Connection& operator = (Connection&& other) noexcept;
+
+    void disconnect();
+
+private:
+    ConnectionInfo * data {nullptr};
 };
-
-SignalBase::SignalBase(SignalBase&& other) noexcept
-    : m_slots(std::move(other.m_slots))
-    , m_connections(std::move(other.m_connections))
-    , m_dirty(other.m_dirty)
-{
-    for (auto * connection : m_connections) {
-        if (connection) {
-            connection->m_signal = this;
-        }
-    }
-}
-
-SignalBase& SignalBase::operator= (SignalBase&& other) noexcept
-{
-    m_slots = std::move(other.m_slots);
-    m_connections = std::move(other.m_connections);
-    m_dirty = other.m_dirty;
-
-    for (auto * connection : m_connections) {
-        if (connection) {
-            connection->m_signal = this;
-        }
-    }
-
-    return *this;
-}
-
-SignalBase::~SignalBase()
-{
-    for (auto * connection : m_connections) {
-        if (connection) {
-            delete connection;
-        }
-    }
-}
 
 /*!
  * \brief Signal accepte des parametres variadics definis par ...Args
@@ -131,67 +127,98 @@ struct Signal: public SignalBase
     void notify(CallArgs&& ...args)
     {
 
-        for (auto i=0 ; i<m_slots.size() ; i++)
+        // Pour chaque connection, on invoque la methode rengistree (functor ou PMF)
+        // Les arguments sont castes par le perfect forwarding
+        for (size_t i=0 ; i<m_connections.size() ; i++)
         {
-            auto& slot = m_slots[i];
-            reinterpret_cast<void(*)(void*, Args...)>(slot.func)(&slot.obj, std::forward<CallArgs>(args)...);
+            auto& slot = m_connections[i].slot;
+
+            if (slot.func) {
+                if (slot.func == slot.obj) {
+                    reinterpret_cast<void(*)(Args...)>(slot.func)(std::forward<CallArgs>(args)...);
+                } else {
+                    reinterpret_cast<void(*)(void*, Args...)>(slot.func)(&slot.obj, std::forward<CallArgs>(args)...);
+                }
+            }
+        }
+
+        // Si une connecion a pris fin, on rearrange le vecteur pour que
+        // les enregistrements restent contigus
+        // Axe d'amelioration ?
+        if (m_dirty) {
+            size_t idx {0};
+
+            for (size_t i=0 ; i<m_connections.size() ; i++) {
+                if ( m_connections[i].conn) {
+                    m_connections[i].conn->m_index = idx;
+                    m_connections[idx] = m_connections[i];
+                    idx++;
+                }
+                m_connections.resize(idx);
+            }
+
         }
 
     }
 
+    /*!
+     * \brief Connecte
+     *
+     * \return BasicConnection
+     */
     template<auto FuncPtr, class Class>
-    Connection connect(Class* object)
+    BasicConnection connect(Class* object)
     {
         // Prochain index dans les connections
-        size_t idx = m_connections.size();
-        auto& call = m_slots.emplace_back();
+        size_t idx = m_connections.size(); //m_connections.size();
+        auto& connection = m_connections.emplace_back();
+        connection.slot.obj = object;
+        connection.slot.func = reinterpret_cast<void*>(+[](void* obj, Args ... args) {((*reinterpret_cast<Class**>(obj))->*FuncPtr)(args...); });
+        connection.conn = new ConnectionInfo(this, idx);
+        return {connection.conn};
+    }
 
-        // Pour les pointeurs de fonction membre, on enveloppe son appel dans une lambda
-        // le +[] pour convertir la lambda en (void *). c.f. c++ specs <built.over>
-        call.obj = object;
-        call.func = reinterpret_cast<void*>(+[](void* obj, Args ... args) {((*reinterpret_cast<Class**>(obj))->*FuncPtr)(args...); });
-        ConnectionBase* conn = new ConnectionBase(this, idx);
-        m_connections.push_back(conn);
-        return { conn };
+    /*!
+     * \brief connect a pointer to function with expected arguments
+     */
+    BasicConnection connect(void(*func)(Args...))
+    {
+        // Cast simple de la fonction en void *
+        size_t idx = m_connections.size();
+        auto& connection = m_connections.emplace_back();
+
+        connection.slot.func = reinterpret_cast<void*>(func);
+        connection.slot.obj = connection.slot.func;
+        connection.conn = new ConnectionInfo(this, idx);
+        return {connection.conn};
+    }
+
+    /*!
+     * \brief connect a pointer to function with expected arguments
+     */
+    template<typename F>
+    BasicConnection connect(F&& functor)
+    {
+        using f_type = std::remove_pointer_t<std::remove_reference_t<F>>;
+        if constexpr (std::is_convertible_v<f_type, void(*)(Args...)>)
+        {
+            return connect(+functor);
+        }
+        else if constexpr (std::is_lvalue_reference_v<F>)
+        {
+            // Prochain index dans les connections
+            size_t idx = m_connections.size(); //m_connections.size();
+            auto& connection = m_connections.emplace_back();
+            connection.slot.obj = &functor;
+            connection.slot.func = reinterpret_cast<void*>(+[](void* obj, Args ... args) {(*reinterpret_cast<f_type**>(obj))->operator()(args...); });
+            connection.conn = new ConnectionInfo(this, idx);
+            return {connection.conn};
+        }
+        return {nullptr};
     }
 };
 
-void test_signals()
-{
-    struct AnyReceiver
-    {
-        void anotherSlot(int a, double b) {
-            qDebug() << __FUNCTION__ << a << b;
-        }
-
-
-        void differentSlot(int a, int b) {
-            qDebug() << __FUNCTION__ << a << b;
-        }
-    };
-
-
-    struct PsuInterface {
-        void slot1(int a, double b) {
-            qDebug() << __FUNCTION__ << a << b;
-        }
-    };
-
-    Signal<int, double> mySignal;
-
-    AnyReceiver rcv;
-
-    PsuInterface psu;
-
-    mySignal.connect<&AnyReceiver::anotherSlot>(&rcv);
-    mySignal.connect<&AnyReceiver::differentSlot>(&rcv);
-    mySignal.connect<&PsuInterface::slot1>(&psu);
-
-
-    mySignal.notify(5, 28.8);
-
-}
-
+    void test_signals();
 }
 
 

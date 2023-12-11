@@ -41,6 +41,7 @@ else()
             ${PROJECT_SOURCES}
             signalslot.h
             eventloop.h
+            signalslot.cpp
         )
     endif()
 endif()

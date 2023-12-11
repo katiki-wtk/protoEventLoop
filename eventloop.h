@@ -65,6 +65,32 @@ public:
     }
 
 
+    template<typename Func, typename ...Args>
+    auto send(Func&& callable, Args&& ...args) {
+        if (std::this_thread::get_id() == m_thread.get_id())
+        {
+            return std::invoke(
+                std::forward<Func>(callable),
+                std::forward<Args>(args)...);
+        }
+
+        using return_type = std::invoke_result_t<Func, Args...>;
+        using packaged_task_type =
+            std::packaged_task<return_type(Args&&...)>;
+
+        packaged_task_type task(std::forward<Func>(callable));
+
+        post([&]
+                {
+                    task(std::forward<Args>(args)...);
+                });
+
+        return task.get_future().get();
+
+    }
+
+
+
 
 private:
     void threadFunc() noexcept
