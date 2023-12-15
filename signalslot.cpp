@@ -76,27 +76,74 @@ SignalBase::~SignalBase()
     }
 }
 
+namespace tests
+{
+
+struct AnyReceiver
+{
+    void anotherSlot(int a, double b) {
+        qDebug() << __FUNCTION__ << a << b;
+    }
+
+
+    void differentSlot(int a, int b) {
+        qDebug() << __FUNCTION__ << a << b;
+    }
+};
+
+
+struct PsuInterface {
+    void slot1(int a, double b) {
+        qDebug() << __FUNCTION__ << a << b;
+    }
+};
+
+
+struct NonTrivialFunctor {
+
+    ~NonTrivialFunctor() {
+        qDebug() << __FUNCTION__ << "DTOR !!";
+
+    }
+
+    void operator()(int a, double d) {
+        qDebug() << __FUNCTION__ << "NonTrivialFunctor: " << a << d;
+    }
+};
+
+void simple_function(int a, double b)
+{
+    qDebug() << __FUNCTION__ << ": a=" << a << ", b=" << b;
+}
+
+
+
+
+void test_pmf()
+{
+    Signal<int, double> mySignal;
+
+    AnyReceiver rcv;
+
+    mySignal.connect<&AnyReceiver::anotherSlot>(&rcv);
+    Connection conn = mySignal.connect<&AnyReceiver::differentSlot>(&rcv);
+    mySignal.notify(5, 28.8);
+    conn.disconnect();
+}
+
+
+void test_nontrivial_functor()
+{
+    Signal<int, double> mySignal;
+    mySignal.connect(NonTrivialFunctor{});
+    mySignal.notify(28, 19.77);
+
+}
 
 void test_signals()
 {
-    struct AnyReceiver
-    {
-        void anotherSlot(int a, double b) {
-            qDebug() << __FUNCTION__ << a << b;
-        }
 
 
-        void differentSlot(int a, int b) {
-            qDebug() << __FUNCTION__ << a << b;
-        }
-    };
-
-
-    struct PsuInterface {
-        void slot1(int a, double b) {
-            qDebug() << __FUNCTION__ << a << b;
-        }
-    };
 
 
     Signal<int, double> mySignal;
@@ -105,34 +152,45 @@ void test_signals()
 
     PsuInterface psu;
 
-    std::cout << "******* Connect Test" << std::endl;
+    qDebug() << "******* Connect Test";
     mySignal.connect<&AnyReceiver::anotherSlot>(&rcv);
     Connection conn = mySignal.connect<&AnyReceiver::differentSlot>(&rcv);
     mySignal.connect<&PsuInterface::slot1>(&psu);
+    mySignal.connect(simple_function);
 
     mySignal.notify(5, 28.8);
 
-
-    std::cout << "******* Disconnect Test" << std::endl;
+    qDebug() << "******* Disconnect Test";
     conn.disconnect();
     mySignal.notify(9,99);
 
 
-    std::cout << "******* Lambda test" << std::endl;
+    qDebug() << "******* Lambda test";
 
+    /*
+    auto ff = [&mySignal](int i, double d) {
+        qDebug() << "FunctionPointer: i=" << i << ", d=" << d;
+        qDebug() << "Beware of recursivity....";
+        mySignal.notify(29,20);
+    };
+*/
 
-    mySignal.connect([](int i, double d) {
-            std::cout << "FunctionPointer: i=" << i << ", d=" << d << std::endl;
+    mySignal.connect([&mySignal](int i, double d) {
+        qDebug() << "FunctionPointer: i=" << i << ", d=" << d;
+        qDebug() << "Beware of recursivity....";
+     //   mySignal.notify(29,20);
     });
+
+    mySignal.connect(NonTrivialFunctor{});
 
     mySignal.notify(28, 19.77);
 
-    std::cout << "******* Functor Test" << std::endl;
+    qDebug() << "******* Functor Test";
     struct Functor
     {
         void operator()(int i, double d)
         {
-            std::cout << "Functor: i=" << i << ", d=" << d << std::endl;
+            qDebug() << "Functor: i=" << i << ", d=" << d;
         }
     };
 
@@ -140,6 +198,7 @@ void test_signals()
     mySignal.connect(functor);
     mySignal.notify(19, 75);
 
+}
 }
 
 }

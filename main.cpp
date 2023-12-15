@@ -1,6 +1,6 @@
 #include <unordered_map>
 #include "mydialog.h"
-
+#include <type_traits>
 
 #include <QApplication>
 #include <QDateTime>
@@ -30,7 +30,9 @@ int main(int argc, char *argv[])
     QApplication a(argc, argv);
 
 #ifdef TEST_SIGNALSLOT
-    test::test_signals();
+    //test::tests::test_signals();
+ //   test::tests::test_pmf();
+    test::tests::test_nontrivial_functor();
 #endif
 
 #ifdef TEST_EVENTLOOP

@@ -6,6 +6,7 @@
 #include <iostream>
 #include <functional>
 #include <iostream>
+#include <type_traits>
 #include <tuple>
 #include <vector>
 
@@ -43,6 +44,7 @@ struct SignalBase
 
     std::vector<ConnectionSlot> m_connections;
     bool m_dirty {false};
+    bool m_calling {false};
 };
 
 
@@ -79,7 +81,7 @@ public:
     BasicConnection(ConnectionInfo *data) noexcept
         : m_data(data) {}
 
-   ~BasicConnection() = default;
+    ~BasicConnection() = default;
     BasicConnection(const BasicConnection&) = default;
     BasicConnection(BasicConnection&&) = default;
 
@@ -99,7 +101,7 @@ class Connection
 {
 public:
     Connection(BasicConnection conn);
-   ~Connection();
+    ~Connection();
     Connection(Connection&& other) noexcept;
 
     Connection(const Connection&) = delete;
@@ -154,8 +156,9 @@ struct Signal: public SignalBase
                     m_connections[idx] = m_connections[i];
                     idx++;
                 }
-                m_connections.resize(idx);
             }
+
+            m_connections.resize(idx);
 
         }
 
@@ -200,25 +203,45 @@ struct Signal: public SignalBase
     BasicConnection connect(F&& functor)
     {
         using f_type = std::remove_pointer_t<std::remove_reference_t<F>>;
-        if constexpr (std::is_convertible_v<f_type, void(*)(Args...)>)
+        if  constexpr(std::is_convertible_v<f_type, void(*)(Args...)>)
         {
             return connect(+functor);
         }
         else if constexpr (std::is_lvalue_reference_v<F>)
         {
             // Prochain index dans les connections
-            size_t idx = m_connections.size(); //m_connections.size();
+            size_t idx = m_connections.size();
             auto& connection = m_connections.emplace_back();
             connection.slot.obj = &functor;
             connection.slot.func = reinterpret_cast<void*>(+[](void* obj, Args ... args) {(*reinterpret_cast<f_type**>(obj))->operator()(args...); });
             connection.conn = new ConnectionInfo(this, idx);
             return {connection.conn};
         }
+        else if constexpr (sizeof(std::remove_pointer_t<f_type>) <= sizeof(void*))
+        {
+            std::cout << "STOP: " << sizeof(std::remove_pointer_t<f_type>) << " <= " << sizeof(void*) << ", trivially: " << std::is_trivially_destructible_v<F> << std::endl;
+            //copy the functor.
+            size_t idx = m_connections.size();
+            auto& connection = m_connections.emplace_back();
+            connection.slot.func = reinterpret_cast<void*>(+[](void* obj, Args ... args) { reinterpret_cast<f_type*>(obj)->operator()(args...); });
+            //new (&call.object) f_type(std::move(functor));
+            new (&connection.slot.obj) f_type(std::move(functor));
+
+            //using conn_t = std::conditional_t<std::is_trivially_destructible_v<F>, details::conn_base, details::conn_nontrivial<F>>;
+            //details::conn_base* conn = new conn_t(this, idx);
+            connection.conn = new ConnectionInfo(this, idx);
+            return {connection.conn};
+
+        }
         return {nullptr};
     }
 };
 
-    void test_signals();
+namespace tests {
+void test_pmf();
+void test_signals();
+void test_nontrivial_functor();
+}
 }
 
 
