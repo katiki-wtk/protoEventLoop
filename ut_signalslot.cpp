@@ -1,4 +1,5 @@
 #include <iostream>
+#include <string>
 
 #include "signalslot.h"
 
@@ -26,6 +27,11 @@ struct ExcComInterface
 struct PsuInterface {
     void slot1(int a, double b) {
         std::cout << __FUNCTION__ << a << b << std::endl;
+    }
+
+    void slot2(std::string s)
+    {
+
     }
 };
 
@@ -68,6 +74,10 @@ void test_nontrivial_functor()
     Signal<int, double> mySignal;
     mySignal.connect(NonTrivialFunctor{});
     mySignal.notify(28, 19.77);
+
+    PsuInterface psu;
+    Signal<std::string> mySignal2;
+    mySignal2.connect<&PsuInterface::slot2>(&psu);
 
 }
 
