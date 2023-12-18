@@ -42,25 +42,28 @@ struct SignalBase
     SignalBase(const SignalBase&) = delete;
     SignalBase& operator= (const SignalBase&) = delete;
 
-    std::vector<ConnectionSlot> m_connections;
-    bool m_dirty {false};
-    bool m_calling {false};
+    // Declare mutable members to "constify" child class methods
+    mutable std::vector<ConnectionSlot> m_connections;
+    mutable bool m_dirty {false};
+    mutable bool m_calling {false};
 };
 
 
-
+/*!
+ * \brief The ConnectionInfo class
+ */
 struct ConnectionInfo
 {
-    SignalBase * m_signal {nullptr};
+    const SignalBase * m_signal {nullptr};
     int m_index{0};
     bool m_used {false};
 
-    ConnectionInfo(SignalBase *sig, int idx)
+    ConnectionInfo(const SignalBase *sig, int idx)
         : m_signal(sig)
         , m_index(idx)
     {}
 
-    ~ConnectionInfo()
+    virtual ~ConnectionInfo()
     {
         // Destruction de la connection:
         // Il faut signaler au signal que cette connection n'existe plus
@@ -75,13 +78,35 @@ struct ConnectionInfo
 };
 
 
+/*!
+ * \brief The NonTrivialBasicConnection class is used for connection
+ *  that involves a functor non-trivially destructibles and built with placement "new"
+ */
+template <typename T>
+struct NonTrivialConnectionInfo : ConnectionInfo
+{
+    using ConnectionInfo::ConnectionInfo;
+
+    virtual ~NonTrivialConnectionInfo() override {
+        if (m_signal) {
+            // Destroy explicitly the resource
+            reinterpret_cast<T*>(&m_signal->m_connections[m_index].slot.obj)->~T();
+        }
+
+    }
+
+};
+
+/*!
+ * \brief The BasicConnection class
+ */
 class BasicConnection
 {
 public:
     BasicConnection(ConnectionInfo *data) noexcept
         : m_data(data) {}
 
-    ~BasicConnection() = default;
+    virtual ~BasicConnection() = default;
     BasicConnection(const BasicConnection&) = default;
     BasicConnection(BasicConnection&&) = default;
 
@@ -92,6 +117,8 @@ public:
 private:
     ConnectionInfo * m_data {nullptr};
 };
+
+
 
 /*!
  * \brief Connection est juste une enveloppe de ConnectionBase
@@ -126,8 +153,13 @@ struct Signal: public SignalBase
      * permettre de caster les arguments correctement
      */
     template <typename ...CallArgs>
-    void notify(CallArgs&& ...args)
+    void notify(CallArgs&& ...args) const
     {
+        bool recursive = m_calling;
+
+        // Mark the no
+        if (!m_calling)
+            m_calling = 1;
 
         // Pour chaque connection, on invoque la methode rengistree (functor ou PMF)
         // Les arguments sont castes par le perfect forwarding
@@ -147,19 +179,23 @@ struct Signal: public SignalBase
         // Si une connecion a pris fin, on rearrange le vecteur pour que
         // les enregistrements restent contigus
         // Axe d'amelioration ?
-        if (m_dirty) {
-            size_t idx {0};
+        if (!recursive) {
+            m_calling = false;
 
-            for (size_t i=0 ; i<m_connections.size() ; i++) {
-                if ( m_connections[i].conn) {
-                    m_connections[i].conn->m_index = idx;
-                    m_connections[idx] = m_connections[i];
-                    idx++;
+            if (m_dirty) {
+                m_dirty = false;
+                size_t idx {0};
+
+                for (size_t i=0 ; i<m_connections.size() ; i++) {
+                    if ( m_connections[i].conn) {
+                        m_connections[i].conn->m_index = idx;
+                        m_connections[idx] = m_connections[i];
+                        idx++;
+                    }
                 }
+
+                m_connections.resize(idx);
             }
-
-            m_connections.resize(idx);
-
         }
 
     }
@@ -169,14 +205,14 @@ struct Signal: public SignalBase
      *
      * \return BasicConnection
      */
-    template<auto FuncPtr, class Class>
-    BasicConnection connect(Class* object)
+    template<auto FuncPtr, class C>
+    BasicConnection connect(C* object) const
     {
         // Prochain index dans les connections
         size_t idx = m_connections.size(); //m_connections.size();
         auto& connection = m_connections.emplace_back();
         connection.slot.obj = object;
-        connection.slot.func = reinterpret_cast<void*>(+[](void* obj, Args ... args) {((*reinterpret_cast<Class**>(obj))->*FuncPtr)(args...); });
+        connection.slot.func = reinterpret_cast<void*>(+[](void* obj, Args ... args) {((*reinterpret_cast<C**>(obj))->*FuncPtr)(args...); });
         connection.conn = new ConnectionInfo(this, idx);
         return {connection.conn};
     }
@@ -184,7 +220,7 @@ struct Signal: public SignalBase
     /*!
      * \brief connect a pointer to function with expected arguments
      */
-    BasicConnection connect(void(*func)(Args...))
+    BasicConnection connect(void(*func)(Args...)) const
     {
         // Cast simple de la fonction en void *
         size_t idx = m_connections.size();
@@ -200,7 +236,7 @@ struct Signal: public SignalBase
      * \brief connect a pointer to function with expected arguments
      */
     template<typename F>
-    BasicConnection connect(F&& functor)
+    BasicConnection connect(F&& functor) const
     {
         using f_type = std::remove_pointer_t<std::remove_reference_t<F>>;
         if  constexpr(std::is_convertible_v<f_type, void(*)(Args...)>)
@@ -224,12 +260,10 @@ struct Signal: public SignalBase
             size_t idx = m_connections.size();
             auto& connection = m_connections.emplace_back();
             connection.slot.func = reinterpret_cast<void*>(+[](void* obj, Args ... args) { reinterpret_cast<f_type*>(obj)->operator()(args...); });
-            //new (&call.object) f_type(std::move(functor));
             new (&connection.slot.obj) f_type(std::move(functor));
 
-            //using conn_t = std::conditional_t<std::is_trivially_destructible_v<F>, details::conn_base, details::conn_nontrivial<F>>;
-            //details::conn_base* conn = new conn_t(this, idx);
-            connection.conn = new ConnectionInfo(this, idx);
+            using connection_t = std::conditional_t<std::is_trivially_destructible_v<F>, ConnectionInfo, NonTrivialConnectionInfo<F>>;
+            connection.conn = new connection_t(this, idx);
             return {connection.conn};
 
         }
@@ -237,11 +271,6 @@ struct Signal: public SignalBase
     }
 };
 
-namespace tests {
-void test_pmf();
-void test_signals();
-void test_nontrivial_functor();
-}
 }
 
 

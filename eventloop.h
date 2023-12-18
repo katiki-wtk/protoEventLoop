@@ -122,7 +122,6 @@ private:
                 std::get<1>(obj)();
                 readQueue.pop();
             }
-
         }
     }
 
