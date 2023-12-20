@@ -138,10 +138,10 @@ void test_send_synchronous_with_signalslots()
 
 
 /*!
- * \brief test_incoming_mqtt_event
+ * \brief test_mock_incoming_mqtt_event
  */
 
-void test_incoming_mqtt_event()
+void test_mock_incoming_mqtt_event()
 {
     struct Message
     {
@@ -172,15 +172,85 @@ void test_incoming_mqtt_event()
         {
             qDebug() << __FUNCTION__ << " - Message ID=" << msg.id << ", Payload=" << QString::fromStdString(msg.payload);
         }
-
     };
 
     EventLoop evLoop;
     ExtcCommunicationMqtt extc {evLoop};
-
     extc.handlerOnMessageArrived("19PayloadData");
+}
+
+/*!
+ * \brief test_mock_msupasyncremoterequest
+ */
+
+void test_mock_msupasyncremoterequest()
+{
+    struct FSM
+    {
+        void runTechnicalErrorRaisedRequest(const int_fast32_t p_X,
+                                            const int_fast32_t p_Y,
+                                            const int_fast32_t p_Z)
+        {
+            qDebug() << __FUNCTION__ << " x=" << p_X << "y=" << p_Y << ", z=" << p_Z;
+        }
+
+        void runMsupSwitchOffRequest(const int p_ReasonId)
+        {
+            qDebug() << __FUNCTION__ << " reasonId=" << p_ReasonId;
+        }
+
+        void runChangeLifecycleRequest(const int p_StateId)
+        {
+            qDebug() << __FUNCTION__ << " stateId=" << p_StateId;
+        }
 
 
+    };
+
+    struct MsupAsyncRemoteRequest
+    {
+        EventLoop& m_evLoop;
+
+        std::shared_ptr<FSM> m_fsm {nullptr};
+
+        void pushTechnicalErrorRaisedRequest(const int_fast32_t p_X,
+                                             const int_fast32_t p_Y,
+                                             const int_fast32_t p_Z)
+        {
+
+            m_evLoop.post([=](){
+                m_fsm->runTechnicalErrorRaisedRequest(p_X, p_Y, p_Z);
+            }, true);
+
+        }
+
+        void pushSwitchOffRequest(const int p_SenderId, const int p_ReasonId)
+        {
+            m_evLoop.post([=](){
+                m_fsm->runMsupSwitchOffRequest(p_ReasonId);
+            });
+
+
+        }
+
+        void pushChangeLifecycleRequest(const int p_StateId)
+        {
+            m_evLoop.post([=](){
+                m_fsm->runChangeLifecycleRequest(p_StateId);
+            });
+
+        }
+    };
+
+    EventLoop evLoop;
+    auto fsm = std::make_shared<FSM>();
+    MsupAsyncRemoteRequest msupAsyncRemoteReq{evLoop, fsm};
+
+    for (int i=0 ; i<10 ; i++) {
+        msupAsyncRemoteReq.pushTechnicalErrorRaisedRequest(i, i+1, i*10);
+        msupAsyncRemoteReq.pushSwitchOffRequest(0x10, i);
+        msupAsyncRemoteReq.pushChangeLifecycleRequest(i);
+    }
 }
 
 void test_all()
@@ -189,7 +259,9 @@ void test_all()
     test_eventloop_observer_signalslot();
     test_send_synchronous();
     test_send_synchronous_with_signalslots();
-    test_incoming_mqtt_event();
+    test_mock_incoming_mqtt_event();
+    test_mock_msupasyncremoterequest();
+
 }
 
 }

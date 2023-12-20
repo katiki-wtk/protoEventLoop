@@ -12,6 +12,7 @@
 #include <tuple>
 #include <vector>
 
+//#define USE_PRIORITY_QUEUE
 
 /*!
  * \brief The EventLoop class
@@ -23,7 +24,11 @@ public:
 
     using callable_t = std::function<void()>;
     using priority_data_t = std::tuple<int, callable_t>;
+#ifdef USE_PRIORITY_QUEUE
     using priority_queue_t = std::priority_queue<priority_data_t, std::vector<priority_data_t>, Compare>;
+#else
+    using priority_queue_t = std::vector<callable_t>;
+#endif
 
     /*!
      * \brief The Compare struct provides a functor to test callable priority
@@ -31,7 +36,7 @@ public:
     struct Compare
     {
         bool operator()(const priority_data_t& lsh, const priority_data_t& rsh) {
-            return (std::get<0>(lsh) < std::get<0>(rsh));
+            return (std::get<0>(lsh) > std::get<0>(rsh));
         }
     };
 
@@ -55,11 +60,19 @@ public:
     /*!
      * \brief Posts a generic \a callable with a given \a priority
      */
-    void post(callable_t&& callable, int priority=1) noexcept
+    void post(callable_t&& callable, const bool priority=false) noexcept
     {
         {
             std::lock_guard<std::mutex> guard(m_mutex);
+#ifdef USE_PRIORITY_QUEUE
             m_writeQueue.emplace(priority, std::move(callable));
+#else
+            if (priority) {
+                m_writeQueue.emplace(m_writeQueue.begin(), std::move(callable));
+            } else {
+                m_writeQueue.emplace_back(std::move(callable));
+            }
+#endif
         }
         m_condition.notify_one();
     }
@@ -115,13 +128,20 @@ private:
 
             qDebug() << "process readQueue: #" << readQueue.size();
 
+#ifdef USE_PRIORITY_QUEUE
             while (!readQueue.empty())
             {
-                /* Could be customized... */
+                // Could be customized...
                 auto & obj = readQueue.top();
                 std::get<1>(obj)();
                 readQueue.pop();
             }
+#else
+            for (auto& callable : readQueue)
+            {
+                callable();
+            }
+#endif
         }
     }
 
