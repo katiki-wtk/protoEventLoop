@@ -200,6 +200,11 @@ struct Signal: public SignalBase
 
     }
 
+    template <typename ...CallArgs>
+    void operator()(CallArgs&& ...args) const {
+        notify(std::forward<CallArgs>(args)...);
+    }
+
     /*!
      * \brief Connecte
      *
