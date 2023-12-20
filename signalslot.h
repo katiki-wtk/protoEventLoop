@@ -254,17 +254,21 @@ struct Signal: public SignalBase
             size_t idx = m_connections.size();
             auto& connection = m_connections.emplace_back();
             connection.slot.obj = &functor;
-            connection.slot.func = reinterpret_cast<void*>(+[](void* obj, Args ... args) {(*reinterpret_cast<f_type**>(obj))->operator()(args...); });
+            connection.slot.func = reinterpret_cast<void*>(+[](void* obj, Args ... args) {
+                (*reinterpret_cast<f_type**>(obj))->operator()(args...);
+            });
             connection.conn = new ConnectionInfo(this, idx);
             return {connection.conn};
         }
         else if constexpr (sizeof(std::remove_pointer_t<f_type>) <= sizeof(void*))
         {
             std::cout << "STOP: " << sizeof(std::remove_pointer_t<f_type>) << " <= " << sizeof(void*) << ", trivially: " << std::is_trivially_destructible_v<F> << std::endl;
-            //copy the functor.
             size_t idx = m_connections.size();
             auto& connection = m_connections.emplace_back();
-            connection.slot.func = reinterpret_cast<void*>(+[](void* obj, Args ... args) { reinterpret_cast<f_type*>(obj)->operator()(args...); });
+            connection.slot.func = reinterpret_cast<void*>(+[](void* obj, Args ... args) {
+                reinterpret_cast<f_type*>(obj)->operator()(args...);
+            });
+
             new (&connection.slot.obj) f_type(std::move(functor));
 
             using connection_t = std::conditional_t<std::is_trivially_destructible_v<F>, ConnectionInfo, NonTrivialConnectionInfo<F>>;

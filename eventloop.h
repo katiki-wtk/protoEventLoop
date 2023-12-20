@@ -78,6 +78,11 @@ public:
     }
 
 
+    /*!
+     * \brief Sends a \a callable in synchronous way
+     * The callable is put on top of the FIFO list
+     * The caller is blocked until the callable is consumed and its result eventually returned
+     */
     template<typename Func, typename ...Args>
     auto send(Func&& callable, Args&& ...args) {
         if (std::this_thread::get_id() == m_thread.get_id())
@@ -96,13 +101,11 @@ public:
         post([&]
                 {
                     task(std::forward<Args>(args)...);
-                });
+                }, true); // Posted at top priority
 
         return task.get_future().get();
 
     }
-
-
 
 
 private:
