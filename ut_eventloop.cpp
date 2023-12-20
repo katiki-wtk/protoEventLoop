@@ -1,4 +1,7 @@
+#include <QDebug>
+
 #include <iostream>
+#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -28,7 +31,6 @@ void emitDpuEvent(EventLoop& loop, const DpuPacketEvent& data)
         return;
     }
 
-
     loop.post(std::bind(std::ref(OnDpuEvent), std::move(data)));
 }
 
@@ -53,6 +55,10 @@ struct Observer1
     void observer1_slot(std::string ev)
     {
         std::cout << __FUNCTION__ << " - event: " << ev << std::endl;
+    }
+
+    void observe1_slot2(int age, const std::string& name) {
+        qDebug() << __FUNCTION__ << " - Name: " << QString::fromStdString(name) << ", age=" << age;
     }
 };
 
@@ -86,10 +92,104 @@ void test_eventloop_observer_signalslot()
 
 }
 
+
+/*!
+ * \brief test_send_synchronous
+ */
+void test_send_synchronous()
+{
+    auto lambda = [](int a, const std::string& name) -> double {
+        qDebug() <<  __FUNCTION__ << " - Name: " << QString::fromStdString(name) << ", age=" << a;
+        return static_cast<double>(a * name.length());
+
+    };
+
+    EventLoop evLoop;
+
+    auto result = evLoop.send(lambda, 29, "Karim");
+
+    qInfo() << " - result = " << result;
+}
+
+void test_send_synchronous_with_signalslots()
+{
+    qDebug() << __FUNCTION__;
+    auto lambda = [](int a, const std::string& name) -> double {
+        qDebug() <<  __FUNCTION__ << " @@@  - Name: " << QString::fromStdString(name) << ", age=" << a;
+        return static_cast<double>(a * name.length());
+
+    };
+
+    Observer1 observer1;
+
+
+    Signal<int, std::string> mySignal;
+    mySignal.connect(lambda);
+    mySignal.connect<&Observer1::observe1_slot2>(&observer1);
+
+    EventLoop evLoop;
+
+    evLoop.post([&mySignal]() {
+        mySignal(29, "Karim");
+    });
+
+    qDebug() << __FUNCTION__ << " - Done !";
+}
+
+
+/*!
+ * \brief test_incoming_mqtt_event
+ */
+
+void test_incoming_mqtt_event()
+{
+    struct Message
+    {
+        int id;
+        std::string payload;
+    };
+
+    struct ExtcCommunicationMqtt
+    {
+        EventLoop& m_evLoop;
+
+        void handlerOnMessageArrived(const std::string& data)
+        {
+            m_evLoop.post([this,&data]() {
+                Message msg;
+                fillData(msg, data);
+                processMessage(std::move(msg));
+            });
+        }
+
+        void fillData(Message& msg, const std::string data)
+        {
+            msg.id = std::stoi(data.substr(0, 2));
+            msg.payload = data.substr(2);
+        }
+
+        void processMessage(Message&& msg)
+        {
+            qDebug() << __FUNCTION__ << " - Message ID=" << msg.id << ", Payload=" << QString::fromStdString(msg.payload);
+        }
+
+    };
+
+    EventLoop evLoop;
+    ExtcCommunicationMqtt extc {evLoop};
+
+    extc.handlerOnMessageArrived("19PayloadData");
+
+
+}
+
 void test_all()
 {
     test_eventloop_eventhandler();
     test_eventloop_observer_signalslot();
+    test_send_synchronous();
+    test_send_synchronous_with_signalslots();
+    test_incoming_mqtt_event();
 }
 
 }
