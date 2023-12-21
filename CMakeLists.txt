@@ -39,6 +39,13 @@ else()
     else()
         add_executable(multiEventLoop
             ${PROJECT_SOURCES}
+            signalslot.h
+            eventloop.h
+            signalslot.cpp
+            ut_signalslot.h
+            ut_signalslot.cpp
+            ut_eventloop.h
+            ut_eventloop.cpp
         )
     endif()
 endif()

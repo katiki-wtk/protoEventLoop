@@ -62,7 +62,7 @@ MyDialog::on_btn_send_clicked()
     if (str.size() != 0) {
         
         m_evLoop->post([str]{
-            qDebug() << "MESSAGE EVENT: msg=" << str;
+            qDebug() << "MESSAGE EVENT: msg=" << QString::fromStdString(str);
 
         }, ui->spin_msg_pri->value());
     }
