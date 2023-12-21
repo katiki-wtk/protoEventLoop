@@ -230,7 +230,6 @@ struct Signal: public SignalBase
         // Cast simple de la fonction en void *
         size_t idx = m_connections.size();
         auto& connection = m_connections.emplace_back();
-
         connection.slot.func = reinterpret_cast<void*>(func);
         connection.slot.obj = connection.slot.func;
         connection.conn = new ConnectionInfo(this, idx);

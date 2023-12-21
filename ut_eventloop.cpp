@@ -48,6 +48,7 @@ void test_eventloop_eventhandler()
     };
 
     emitDpuEvent(evLoop, DpuPacketEvent{'X'});
+
 }
 
 struct Observer1

@@ -48,14 +48,46 @@ struct NonTrivialFunctor {
     }
 };
 
+
+/*!
+ * \brief simple_function
+ */
 void simple_function(int a, double b)
 {
     std::cout << __FUNCTION__ << ": a=" << a << ", b=" << b << std::endl;
 }
 
+void simple_function_2(int a, double& b)
+{
+    std::cout << __FUNCTION__ << ": a=" << a << ", b=" << b << std::endl;
+
+}
 
 
 
+/*!
+ * \brief test_simple_function
+ */
+void test_simple_function()
+{
+    // Declare signal with respective prototype
+    Signal<int, double> mySignal;
+
+    // Connect Signal to its simple_function slot
+    mySignal.connect(simple_function);
+
+    // Activate signal
+    mySignal.notify(12, 20.23);
+
+
+    // Activate signal again
+    mySignal(12, 23.24);
+}
+
+
+/*!
+ * \brief test_pointer_to_member_function
+ */
 void test_pointer_to_member_function()
 {
     Signal<int, double> mySignal;
@@ -65,7 +97,11 @@ void test_pointer_to_member_function()
     mySignal.connect<&ExcComInterface::anotherSlot>(&rcv);
     Connection conn = mySignal.connect<&ExcComInterface::differentSlot>(&rcv);
     mySignal.notify(5, 28.8);
+
+    // Discounnect 'conn' connection
     conn.disconnect();
+
+    mySignal(99, 30.);
 }
 
 
@@ -83,7 +119,6 @@ void test_nontrivial_functor()
 
 void test_global_case_with_multiple_signals_and_slots()
 {
-
     Signal<int, double> mySignal;
 
     ExcComInterface rcv;
@@ -132,6 +167,8 @@ void test_global_case_with_multiple_signals_and_slots()
 
 void test_all()
 {
+    test_simple_function();
+
     test_pointer_to_member_function();
     test_global_case_with_multiple_signals_and_slots();
     test_nontrivial_functor();
