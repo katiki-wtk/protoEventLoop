@@ -24,6 +24,8 @@ public:
     /// Adds a client.
     void addClient(TimerCallback client);
 
+    std::vector<epoll_data_t> getFDs() override;
+
 protected:
     // This is an ABC.
     TimerBase();
@@ -32,17 +34,16 @@ protected:
     // periodMillis is interval between repeats.
     int set(unsigned long delayMillis, unsigned long periodMillis, int flags = 0);
 
+    // Clients.
+    std::vector<TimerCallback> m_clients;
+
 private:
     int m_fd;
     static void millisToTimespec(unsigned long millis, struct timespec& ts);
 
-    // Clients.
-    std::vector<TimerCallback> m_clients;
-    int notify(uint64_t expiries);
+    virtual int notify(uint64_t expiries);
 
     int onFD(const epoll_event& info) override;
-
-    std::vector<epoll_data_t> getFDs() override;
 
     TimerBase(const TimerBase&) = delete;
     TimerBase& operator=(const TimerBase&) = delete;

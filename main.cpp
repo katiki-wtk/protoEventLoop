@@ -12,15 +12,22 @@ static MyDialog * w {nullptr};
 
 #include "ut_eventloop.h"
 #include "ut_signalslot.h"
+#include "ut_fdtimers.h"
 
 #define TEST_SIGNALSLOT
 #define TEST_EVENTLOOP
+#define TEST_FDTIMERS
 
 int main(int argc, char *argv[])
 {
     qSetMessagePattern("%{time hh:mm:ss.z} -- %{qthreadptr} -- %{category} -- %{message}");
 
     QApplication a(argc, argv);
+
+#ifdef TEST_FDTIMERS
+    ut_fdtimers::test_simple_function();
+#endif
+
 
 #ifdef TEST_SIGNALSLOT
     tests::test_all();
@@ -34,8 +41,6 @@ int main(int argc, char *argv[])
     a.exec();
     delete w;
 */
-
-
 #endif
 
     return 0;

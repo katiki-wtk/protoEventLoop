@@ -1,7 +1,7 @@
 #include "one_shot_timer.h"
 
 namespace libeventloop {
-OneShotTimer::OneShotTimer()
+OneShotTimer::OneShotTimer() : TimerBase()
 {}
 
 int OneShotTimer::start(unsigned long delayMillis)

@@ -12,6 +12,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 
+add_subdirectory(fd)
+
 set(PROJECT_SOURCES
         main.cpp
         mydialog.cpp
@@ -42,15 +44,21 @@ else()
             signalslot.h
             eventloop.h
             signalslot.cpp
+            timer_provider.h
+            timer_provider.cpp
+            one_shot_timer_signal.h
+            one_shot_timer_signal.cpp
             ut_signalslot.h
             ut_signalslot.cpp
             ut_eventloop.h
             ut_eventloop.cpp
+            ut_fdtimers.h
+            ut_fdtimers.cpp
         )
     endif()
 endif()
 
-target_link_libraries(multiEventLoop PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+target_link_libraries(multiEventLoop PRIVATE Qt${QT_VERSION_MAJOR}::Widgets eventloop)
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
