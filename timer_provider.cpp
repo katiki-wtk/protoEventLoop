@@ -9,6 +9,8 @@
 #include <vector>
 #include <iostream>
 
+#include <cstring>
+
 namespace libeventloop {
 
 int TimerProvider::init() {
@@ -60,8 +62,6 @@ int TimerProvider::removeTimer(TimerBase& source)
 
     int fd = items[0].fd;
 
-    std::
-
     if (fd != -1) {
         m_timerMap.erase(fd);
     }
@@ -88,7 +88,6 @@ int TimerProvider::run()
     if (res == -1) {
         std::cerr << "Failed init" << std::endl;
     }
-    m_stop = false;
     while (!m_stop) {
         if (0 != (res = runOnce(true))) {
             std::cerr << "Failed polling with code : " << res << std::endl;
@@ -109,17 +108,25 @@ int TimerProvider::runOnce(bool block)
     }
 
     if (r > 0) {
+
+        std::cout << "Received size " << r << std::endl;
+
         for (e = epoll_buf; e < &epoll_buf[r]; ++e) {
             
             auto it = m_timerMap.find(e->data.fd);
             if (it == std::end(m_timerMap))
             {
                 return -1;
+            } else {
+                std::cout << "found fd" << it->first << std::endl;
             }
+
+            auto *timerInstance = it->second;
+
+            auto capturedEvent = e;
+
             // TODO handle return value
-            m_loop.post([&](){
-                it->second->onFD(*e);
-            });
+            timerInstance->onFD(*capturedEvent);
         }
     }
 

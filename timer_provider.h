@@ -1,6 +1,5 @@
 #pragma once
 
-#include "eventloop.h"
 #include "fd/lib/ievent_source.h"
 #include "fd/lib/istoppable.h"
 #include "fd/lib/timer_base.h"
@@ -13,7 +12,7 @@
 namespace libeventloop {
 class TimerProvider : public IStoppable{
 public:
-    TimerProvider(EventLoop& loop) : m_loop{loop} {}
+    TimerProvider() {}
 
     ~TimerProvider() {
         stop();
@@ -30,17 +29,14 @@ public:
     void stop() final;
 
 private:
-    EventLoop& m_loop;
 
     std::thread m_task{&TimerProvider::run, this} ;
-
-    std::mutex m_mutex;
 
     int m_EpollFd {-1};
 
     std::unordered_map<int, IEventSource*> m_timerMap;
 
-    std::atomic_bool m_stop;
+    std::atomic_bool m_stop {true};
 
     TimerProvider(const TimerProvider&) = delete;
     TimerProvider& operator=(const TimerProvider&) = delete;

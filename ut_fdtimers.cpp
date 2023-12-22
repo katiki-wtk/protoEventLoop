@@ -10,6 +10,7 @@
 #include "eventloop.h"
 #include "timer_provider.h"
 #include "one_shot_timer_signal.h"
+#include "one_shot_timer_post.h"
 
 namespace ut_fdtimers
 {
@@ -23,15 +24,20 @@ void test_simple_function()
     std::cout << "Test" << std::endl;
     EventLoop evLoop;
 
-    libeventloop::TimerProvider provider(evLoop);
+    libeventloop::TimerProvider provider;
 
-    libeventloop::OneShotTimer timer;
+    libeventloop::OneShotTimerPost timer(evLoop);
     timer.init();
     provider.addTimer(timer);
     timer.addClient(
         [&](libeventloop::IEventSource* source, uint64_t expiries){
             qDebug() << __FUNCTION__ << "Timer tick !";
-            provider.removeTimer(timer);
+            return 0;
+        }
+    );
+    timer.addClient(
+        [&](libeventloop::IEventSource* source, uint64_t expiries){
+            qDebug() << __FUNCTION__ << "Timer tick ! Echo !";
             return 0;
         }
     );

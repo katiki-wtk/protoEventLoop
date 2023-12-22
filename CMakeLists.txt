@@ -46,6 +46,8 @@ else()
             signalslot.cpp
             timer_provider.h
             timer_provider.cpp
+            one_shot_timer_post.h
+            one_shot_timer_post.cpp
             one_shot_timer_signal.h
             one_shot_timer_signal.cpp
             ut_signalslot.h
