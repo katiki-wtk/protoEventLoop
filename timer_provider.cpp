@@ -16,7 +16,7 @@ TimerProvider::~TimerProvider() {
     m_stopper.stop();
      
     if (m_EpollFd != -1) {
-        close(m_EpollFd);
+        (void)::close(m_EpollFd);
     }
 
     m_task.join();

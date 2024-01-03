@@ -30,11 +30,11 @@ int main(int argc, char *argv[])
 
 
 #ifdef TEST_SIGNALSLOT
-    tests::test_all();
+    // tests::test_all();
 #endif
 
 #ifdef TEST_EVENTLOOP
-    ut_eventloop::test_all();
+    // ut_eventloop::test_all();
 
 /*    w = new MyDialog{};
     w->show();

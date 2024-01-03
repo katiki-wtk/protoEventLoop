@@ -20,7 +20,7 @@ CrossThreadStopper::~CrossThreadStopper()
 int CrossThreadStopper::init()
 {
     m_event = ::eventfd(0, EFD_SEMAPHORE);
-    if (m_event == -1) {
+    if (m_event < 0) {
         std::cerr << "eventfd() failed with : " << std::strerror(errno) << std::endl;
         return errno;
     }
