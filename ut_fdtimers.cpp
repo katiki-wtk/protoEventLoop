@@ -48,31 +48,31 @@ void test_simple_function()
     qDebug() << __FUNCTION__ << " - Done !";
 }
 
-/*
+
 void test_signal_slot_function() {
-        std::cout << "Test" << std::endl;
+    /*
+    std::cout << "Test" << std::endl;
     EventLoop evLoop;
 
     libeventloop::TimerProvider provider(evLoop);
 
     libeventloop::OneShotTimerSignal timer;
     timer.init();
-    timer.addClient(
-        [&](libeventloop::IEventSource* source, uint64_t expiries){
-            qDebug() << __FUNCTION__ << "Timer tick !";
-            provider.stop();
-        }
-    );
     provider.addTimer(timer);
+
     timer.start(3000);
 
+    std::this_thread::sleep_for(std::chrono::milliseconds(4000));
+
     qDebug() << __FUNCTION__ << " - Done !";
+    */
 }
-*/
+
 
 void test_all()
 {
-    void test_simple_function();
+    test_simple_function();
+    test_signal_slot_function();
 }
 
 }

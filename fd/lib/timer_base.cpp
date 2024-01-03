@@ -48,7 +48,6 @@ void TimerBase::addClient(TimerCallback client)
 
 int TimerBase::onFD(const epoll_event& info)
 {
-    std::cout << "fd:" << m_fd << std::endl;
     if (info.data.fd != m_fd) {
         std::cerr << "Unexpected fd :" << info.data.fd << "expeted :" << m_fd << std::endl;
         return -1;

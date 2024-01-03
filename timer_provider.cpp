@@ -1,23 +1,37 @@
 
 #include "timer_provider.h"
-#include <algorithm>
 #include <cerrno>
-#include <cstring>
 #include <set>
 #include <sys/epoll.h>
 #include <sys/time.h>
 #include <vector>
 #include <iostream>
-
-#include <cstring>
+#include <unistd.h>
 
 namespace libeventloop {
+
+TimerProvider::TimerProvider() : m_stopper(*this){}
+
+TimerProvider::~TimerProvider() {
+    m_stopper.stop();
+     
+    if (m_EpollFd != -1) {
+        close(m_EpollFd);
+    }
+
+    m_task.join();
+}
 
 int TimerProvider::init() {
     m_EpollFd = epoll_create1(EPOLL_CLOEXEC);
     if (m_EpollFd < 0) {
         return -errno;
     }
+
+    m_stopper.init();
+
+    addEventSource(m_stopper);
+
     return 0;
 }
 
@@ -28,16 +42,26 @@ void TimerProvider::stop()
 
 int TimerProvider::addTimer(TimerBase& source)
 {
+    return addEventSource(source);
+}
+
+int TimerProvider::removeTimer(TimerBase& source)
+{
+    return removeEventSource(source);
+}
+
+
+int TimerProvider::addEventSource(IEventSource& source) {
     auto items = source.getFDs();
 
     int fd = items[0].fd;
 
     if (fd != -1) {
-        if (m_timerMap.find(fd) != m_timerMap.end()) {
+        if (m_fdMap.find(fd) != m_fdMap.end()) {
             std::cerr << "duplicate fd " << fd << std::endl;
             return -1;
         }
-        m_timerMap.insert(std::make_pair(fd, &source));
+        m_fdMap.insert(std::make_pair(fd, &source));
     }
     else {
         std::cerr << "fd not set" << std::endl;
@@ -56,14 +80,13 @@ int TimerProvider::addTimer(TimerBase& source)
     return 0;
 }
 
-int TimerProvider::removeTimer(TimerBase& source)
-{
+int TimerProvider::removeEventSource(IEventSource& source) {
     auto items = source.getFDs();
 
     int fd = items[0].fd;
 
     if (fd != -1) {
-        m_timerMap.erase(fd);
+        m_fdMap.erase(fd);
     }
     else {
         std::cerr << "fd not set" << std::endl;
@@ -112,21 +135,19 @@ int TimerProvider::runOnce(bool block)
         std::cout << "Received size " << r << std::endl;
 
         for (e = epoll_buf; e < &epoll_buf[r]; ++e) {
-            
-            auto it = m_timerMap.find(e->data.fd);
-            if (it == std::end(m_timerMap))
+
+            int fd {e->data.fd};
+
+            auto it = m_fdMap.find(fd);
+            if (it == std::end(m_fdMap))
             {
                 return -1;
             } else {
-                std::cout << "found fd" << it->first << std::endl;
+                std::cout << "Event source is fd " << fd << std::endl;
             }
 
-            auto *timerInstance = it->second;
-
-            auto capturedEvent = e;
-
             // TODO handle return value
-            timerInstance->onFD(*capturedEvent);
+            it->second->onFD(*e); 
         }
     }
 

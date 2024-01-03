@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
     QApplication a(argc, argv);
 
 #ifdef TEST_FDTIMERS
-    ut_fdtimers::test_simple_function();
+    ut_fdtimers::test_all();
 #endif
 
 

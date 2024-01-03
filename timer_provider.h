@@ -3,6 +3,7 @@
 #include "fd/lib/ievent_source.h"
 #include "fd/lib/istoppable.h"
 #include "fd/lib/timer_base.h"
+#include "fd/lib/cross_thread_stopper.h"
 #include <atomic>
 #include <memory>
 #include <mutex>
@@ -12,12 +13,9 @@
 namespace libeventloop {
 class TimerProvider : public IStoppable{
 public:
-    TimerProvider() {}
+    TimerProvider();
 
-    ~TimerProvider() {
-        stop();
-        m_task.join();
-    }
+    ~TimerProvider();
 
     int init();
 
@@ -29,14 +27,18 @@ public:
     void stop() final;
 
 private:
+    int addEventSource(IEventSource& s);
+    int removeEventSource(IEventSource& s);
 
     std::thread m_task{&TimerProvider::run, this} ;
 
     int m_EpollFd {-1};
 
-    std::unordered_map<int, IEventSource*> m_timerMap;
+    CrossThreadStopper m_stopper;
 
-    std::atomic_bool m_stop {true};
+    std::unordered_map<int, IEventSource*> m_fdMap;
+
+    bool m_stop {false};
 
     TimerProvider(const TimerProvider&) = delete;
     TimerProvider& operator=(const TimerProvider&) = delete;
