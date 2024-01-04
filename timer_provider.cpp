@@ -1,7 +1,9 @@
 
 #include "timer_provider.h"
 #include <cerrno>
+#include <mutex>
 #include <set>
+#include <stdexcept>
 #include <sys/epoll.h>
 #include <sys/time.h>
 #include <vector>
@@ -10,7 +12,7 @@
 
 namespace libeventloop {
 
-TimerProvider::TimerProvider() : m_stopper(*this){}
+TimerProvider::TimerProvider() : m_stopper(*this){ init(); }
 
 TimerProvider::~TimerProvider() {
     m_stopper.stop();
@@ -25,11 +27,13 @@ TimerProvider::~TimerProvider() {
 int TimerProvider::init() {
     m_EpollFd = epoll_create1(EPOLL_CLOEXEC);
     if (m_EpollFd < 0) {
+        std::cerr << "Failed to create epoll instance" << std::endl;
         return -errno;
     }
 
     m_stopper.init();
 
+    std::cout << "Adding stopper" << std::endl;
     addEventSource(m_stopper);
 
     return 0;
@@ -74,6 +78,7 @@ int TimerProvider::addEventSource(IEventSource& source) {
     e.data.fd = fd;
 
     if (epoll_ctl(m_EpollFd, EPOLL_CTL_ADD, fd, &e) < 0) {
+        std::cerr << "Failed to add fd " << fd << " to epoll instance " << m_EpollFd << " with errno :" << errno << std::endl;
         return -errno;
     }
     
@@ -107,10 +112,7 @@ int TimerProvider::removeEventSource(IEventSource& source) {
 
 int TimerProvider::run()
 {
-    int res = init();
-    if (res == -1) {
-        std::cerr << "Failed init" << std::endl;
-    }
+    int res = 0;
     while (!m_stop) {
         if (0 != (res = runOnce(true))) {
             std::cerr << "Failed polling with code : " << res << std::endl;

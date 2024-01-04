@@ -22,6 +22,8 @@ public:
     int addTimer(TimerBase& s);
     int removeTimer(TimerBase& s);
 
+    void start() { m_task = std::thread(&TimerProvider::run, this);}
+
     int run();
     int runOnce(bool block = true);
     void stop() final;
@@ -30,13 +32,15 @@ private:
     int addEventSource(IEventSource& s);
     int removeEventSource(IEventSource& s);
 
-    std::thread m_task{&TimerProvider::run, this} ;
+    std::thread m_task;
 
     int m_EpollFd {-1};
 
     CrossThreadStopper m_stopper;
 
     std::unordered_map<int, IEventSource*> m_fdMap;
+
+    std::mutex m_mutex;
 
     bool m_stop {false};
 

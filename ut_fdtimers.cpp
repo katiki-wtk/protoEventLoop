@@ -42,6 +42,9 @@ void test_simple_function()
             return 0;
         }
     );
+
+    provider.start();
+
     timer.start(3000);
 
     while (!stop);
@@ -72,6 +75,7 @@ void test_signal_slot_function() {
     libeventloop::OneShotTimerSignal timer;
 
     timer.init();
+    std::cout << "Adding timer" << std::endl;
     provider.addTimer(timer);
 
     /*
@@ -88,6 +92,8 @@ void test_signal_slot_function() {
             stop = true;
         }
     );
+
+    provider.start();
 
     timer.start(3000);
 
