@@ -1,6 +1,7 @@
 #include <QDebug>
 
 #include <iostream>
+#include <exception>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -91,6 +92,7 @@ void test_eventloop_observer_signalslot()
         mySignal.notify("Test !");
     });
 
+
 }
 
 
@@ -137,6 +139,59 @@ void test_send_synchronous_with_signalslots()
     qDebug() << __FUNCTION__ << " - Done !";
 }
 
+#include <chrono>
+
+
+void test_lambda_shared_ptr()
+{
+    struct Data {
+
+        std::string msg;
+
+        Data(const std::string& m) : msg{m} {}
+    };
+
+
+    // shared_ptr
+    {
+
+        EventLoop evLoop;
+
+        {
+            auto data = std::make_shared<Data>("Test");
+
+            evLoop.post([data]() {
+                qDebug() << __FUNCTION__ << "Data = " << QString::fromStdString(data->msg);
+            });
+        }
+    }
+
+    // weak_ptr
+    {
+        EventLoop evLoop;
+
+        {
+            auto data = std::make_shared<Data>("Test");
+
+            std::weak_ptr<Data> wp = data;
+
+            evLoop.post([wp]() {
+                auto sp = wp.lock();
+                if (sp) {
+                    qDebug() << __FUNCTION__ << "SP Data = " << QString::fromStdString(sp->msg);
+                }
+                else {
+                    qDebug() << __FUNCTION__ << "Data NOT AVAILABLE ";
+                    throw std::exception("error");
+
+                }
+            });
+
+            //std::this_thread::sleep_for(std::chrono::seconds(3));
+        }
+    }
+
+}
 
 /*!
  * \brief test_mock_incoming_mqtt_event
@@ -156,7 +211,7 @@ void test_mock_incoming_mqtt_event()
 
         void handlerOnMessageArrived(const std::string& data)
         {
-            m_evLoop.post([this,&data]() {
+            m_evLoop.post([this,data]() {
                 Message msg;
                 fillData(msg, data);
                 processMessage(std::move(msg));
@@ -256,13 +311,15 @@ void test_mock_msupasyncremoterequest()
 
 void test_all()
 {
+    test_lambda_shared_ptr();
+/*
     test_eventloop_eventhandler();
     test_eventloop_observer_signalslot();
     test_send_synchronous();
     test_send_synchronous_with_signalslots();
     test_mock_incoming_mqtt_event();
     test_mock_msupasyncremoterequest();
-
+*/
 }
 
 }

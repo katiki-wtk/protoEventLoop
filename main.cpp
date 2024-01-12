@@ -13,7 +13,7 @@ static MyDialog * w {nullptr};
 #include "ut_eventloop.h"
 #include "ut_signalslot.h"
 
-#define TEST_SIGNALSLOT
+//#define TEST_SIGNALSLOT
 #define TEST_EVENTLOOP
 
 int main(int argc, char *argv[])

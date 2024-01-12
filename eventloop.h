@@ -142,7 +142,15 @@ private:
 #else
             for (auto& callable : readQueue)
             {
-                callable();
+                try {
+                    callable();
+                }
+                catch (std::exception exc) {
+                    std::cerr << __FUNCTION__ << " - exception caught: " << exc.what() << std::endl;
+                }
+                catch (...) {
+                    std::cerr << __FUNCTION__ << " - unexpected exception caught. " << std::endl;
+                }
             }
 #endif
         }
