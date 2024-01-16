@@ -4,6 +4,7 @@
 #include <exception>
 #include <cstdlib>
 #include <string>
+#include <memory>
 #include <vector>
 
 #include "eventloop.h"
@@ -145,12 +146,9 @@ void test_send_synchronous_with_signalslots()
 void test_lambda_shared_ptr()
 {
     struct Data {
-
         std::string msg;
-
         Data(const std::string& m) : msg{m} {}
     };
-
 
     // shared_ptr
     {
@@ -183,14 +181,12 @@ void test_lambda_shared_ptr()
                 else {
                     qDebug() << __FUNCTION__ << "Data NOT AVAILABLE ";
                     throw std::exception("error");
-
                 }
             });
 
             //std::this_thread::sleep_for(std::chrono::seconds(3));
         }
     }
-
 }
 
 /*!
@@ -309,16 +305,111 @@ void test_mock_msupasyncremoterequest()
     }
 }
 
+
+void test_lambda_capture_move()
+{
+    struct Message {
+        std::string msg;
+        int val {0};
+        Message(const std::string& m, int v)
+            : msg(m), val(v){}
+    };
+
+
+    EventLoop loop;
+
+
+    {
+        auto msg = std::make_shared<Message>("test", 99);
+
+        /*loop.post([msg = std::move(msg)]() {
+            std::this_thread::sleep_for(std::chrono::seconds(2));
+            std::cerr << "Message: " << msg.msg << ", val=" << msg.val << std::endl;
+
+        });
+*/
+        loop.post([msg]() {
+           std::this_thread::sleep_for(std::chrono::seconds(2));
+            qDebug() << "Message: " << QString::fromStdString(msg->msg) << ", val=" << msg->val;
+
+        });
+
+
+    }
+
+
+    /*
+     * qDebug() << __FUNCTION__ << " - Go";
+
+    struct Extc
+    {
+        EventLoop& loop;
+
+        void onReceive(Message& msg)
+        {
+            loop.post([this, &msg]() {
+                std::this_thread::sleep_for(std::chrono::seconds(2));
+                foo(msg);
+            });
+        }
+
+        void onReceive(std::string& msg, int& val)
+        {
+            loop.post([this, &msg, &val]() {
+                std::this_thread::sleep_for(std::chrono::seconds(2));
+                foo(msg, val);
+            });
+        }
+
+
+        void foo(Message& msg)
+        {
+            //qDebug() <<  __FUNCTION__ << " -- Message:" << QString::fromStdString(msg.msg) << ", val=" << msg.val;
+            foo(msg.msg, msg.val);
+        }
+
+        void foo(const std::string& msg, int val)
+        {
+            qDebug() <<  __FUNCTION__ << " -- Message:" << QString::fromStdString(msg) << ", val=" << val;
+        }
+
+    };
+
+    Extc extc{loop};
+
+    {
+        Message msg {"karim", 29};
+
+
+        std::string str{"karim"};
+        int val {98};
+
+
+        extc.onReceive(str, val);
+
+       // std::this_thread::sleep_for(std::chrono::seconds(3));
+    }
+*/
+
+
+
+
+}
+
 void test_all()
 {
-    test_lambda_shared_ptr();
+    test_lambda_capture_move();
+    //test_mock_incoming_mqtt_event();
 
-    test_eventloop_eventhandler();
+
+    test_lambda_shared_ptr();
+/*    test_eventloop_eventhandler();
     test_eventloop_observer_signalslot();
     test_send_synchronous();
     test_send_synchronous_with_signalslots();
     test_mock_incoming_mqtt_event();
     test_mock_msupasyncremoterequest();
+*/
 
 }
 
