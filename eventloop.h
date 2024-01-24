@@ -12,10 +12,16 @@
 #include <tuple>
 #include <vector>
 
-//#define USE_PRIORITY_QUEUE
-/*!
- * \brief The EventLoop class
- */
+
+struct TechErr
+{
+    int x {0};
+    int y {1};
+    int z {2};
+};
+
+#define FK_SYSTEM_EROR(a,b,c,m) std::cerr << "TechErr: " << a << b << c << m << std::endl
+
 class EventLoop
 {
 public:
@@ -37,6 +43,15 @@ public:
             m_events.emplace_back(priority, std::move(callable));
         }
         m_condition.notify_one();
+    }
+
+    void post(TechErr& err)
+    {
+        post([err]() {
+            FK_SYSTEM_EROR(err.x, err.y, err.z, "TechErr raised");
+
+        }, true);
+
     }
 
     template<typename Func, typename ...Args>

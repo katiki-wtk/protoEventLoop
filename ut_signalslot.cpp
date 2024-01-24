@@ -141,9 +141,8 @@ void test_global_case_with_multiple_signals_and_slots()
     std::cout << "******* Lambda test";
 
 
-    mySignal.connect([&mySignal](int i, double d) {
-        std::cout << "FunctionPointer: i=" << i << ", d=" << d;
-        std::cout << "Beware of recursivity....";
+    mySignal.connect([](int i, double d) {
+        std::cout << "Lambda: i=" << i << ", d=" << d;
     });
 
     mySignal.connect(NonTrivialFunctor{});

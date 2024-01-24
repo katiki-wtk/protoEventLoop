@@ -399,17 +399,17 @@ void test_lambda_capture_move()
 void test_all()
 {
     test_lambda_capture_move();
-    //test_mock_incoming_mqtt_event();
+    test_mock_incoming_mqtt_event();
 
 
     test_lambda_shared_ptr();
-/*    test_eventloop_eventhandler();
+    test_eventloop_eventhandler();
     test_eventloop_observer_signalslot();
     test_send_synchronous();
     test_send_synchronous_with_signalslots();
     test_mock_incoming_mqtt_event();
     test_mock_msupasyncremoterequest();
-*/
+
 
 }
 
