@@ -57,14 +57,18 @@ MyDialog::on_chbox_timer_events_toggled(bool value)
 void
 MyDialog::on_btn_send_clicked()
 {
-    auto str = ui->edit_simple_msg->text().toStdString();
+    auto str = ui->edit_simple_msg->text();
 
     if (str.size() != 0) {
-        
-        m_evLoop->post([str]{
-            qDebug() << "MESSAGE EVENT: msg=" << QString::fromStdString(str);
 
-        }, ui->chbox_pri_msg->isChecked());
+        for (int i=0 ; i<3 ; i++) {
+            int val = ui->spin_errnum->value();
+            ui->spin_errnum->setValue(val+1);
+
+            m_evLoop->post([str, val]{
+                qDebug() << "TechErr Event: Num: " << val << "  -- msg=" <<str;
+            }, ui->chbox_pri_msg->isChecked());
+        }
     }
 }
 

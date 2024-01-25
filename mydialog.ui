@@ -116,7 +116,7 @@
        <item>
         <widget class="QLabel" name="label">
          <property name="text">
-          <string>Simple Msg</string>
+          <string>Tech Error</string>
          </property>
         </widget>
        </item>
@@ -124,6 +124,16 @@
         <widget class="QLineEdit" name="edit_simple_msg">
          <property name="text">
           <string>testMsg</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QSpinBox" name="spin_errnum">
+         <property name="maximum">
+          <number>50000</number>
+         </property>
+         <property name="value">
+          <number>0</number>
          </property>
         </widget>
        </item>

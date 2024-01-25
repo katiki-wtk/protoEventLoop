@@ -4,7 +4,7 @@
 #include <QDebug>
 
 #include <condition_variable>
-#include <deque>
+#include <queue>
 #include <functional>
 #include <future>
 #include <iostream>
@@ -18,6 +18,7 @@ struct TechErr
     int x {0};
     int y {1};
     int z {2};
+
 };
 
 #define FK_SYSTEM_EROR(a,b,c,m) std::cerr << "TechErr: " << a << b << c << m << std::endl
@@ -41,22 +42,27 @@ public:
         {
             std::lock_guard<std::mutex> guard(m_mutex);
             if (priority) {
-                m_events.emplace_front(priority, std::move(callable));
-            } else {
-                m_events.emplace_back(priority, std::move(callable));
+                m_techErrors.emplace(priority, std::move(callable));
+            }
+            else {
+                m_events.emplace(priority, std::move(callable));
             }
         }
         m_condition.notify_one();
     }
 
-    void post(TechErr& err)
+    /*void post(TechErr& err, const std::string& msg)
     {
-        post([err]() {
-            FK_SYSTEM_EROR(err.x, err.y, err.z, "TechErr raised");
+        {
+            std::lock_guard<std::mutex> guard(m_mutex);
+            m_techErrors.emplace(true, [err,msg]() {
+                FK_SYSTEM_EROR(err.x, err.y, err.z, msg);
 
-        }, true);
-
+            });
+        }
+        m_condition.notify_one();
     }
+    */
 
     /*!
      * \brief send
@@ -144,8 +150,15 @@ private:
                 if (!m_running)
                     break;
 
-                event = m_events.front();
-                m_events.pop_front();
+                if (m_techErrors.size()>0) {
+                    event = m_techErrors.front();
+                    m_techErrors.pop();
+                }
+                else if (m_events.size()>0) {
+                    event = m_events.front();
+                    m_events.pop();
+                }
+
             }
 
             processEvent(event);
@@ -160,7 +173,9 @@ private:
     }
 
 
-    std::deque<Event> m_events;
+    std::queue<Event> m_events;
+    std::queue<Event> m_techErrors;
+
     std::mutex m_mutex;
     std::condition_variable m_condition;
     bool m_running{true};
