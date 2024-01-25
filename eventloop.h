@@ -4,10 +4,10 @@
 #include <QDebug>
 
 #include <condition_variable>
+#include <deque>
 #include <functional>
 #include <future>
 #include <iostream>
-#include <queue>
 #include <thread>
 #include <tuple>
 #include <vector>
@@ -40,7 +40,11 @@ public:
     void post(callable_t&& callable, bool priority = false) noexcept {
         {
             std::lock_guard<std::mutex> guard(m_mutex);
-            m_events.emplace_back(priority, std::move(callable));
+            if (priority) {
+                m_events.emplace_front(priority, std::move(callable));
+            } else {
+                m_events.emplace_back(priority, std::move(callable));
+            }
         }
         m_condition.notify_one();
     }
@@ -54,6 +58,11 @@ public:
 
     }
 
+    /*!
+     * \brief send
+     * \param callable
+     * \param args
+     */
     template<typename Func, typename ...Args>
     auto send(Func&& callable, Args&& ...args) {
         if (isInEventLoopThread()) {
@@ -72,6 +81,9 @@ public:
         return task.get_future().get();
     }
 
+    /*!
+     * \brief stop
+     */
     void stop() noexcept {
         {
             std::lock_guard<std::mutex> guard(m_mutex);
@@ -80,6 +92,9 @@ public:
         m_condition.notify_one();
     }
 
+    /*!
+     * \brief join
+     */
     void join() {
         if (m_thread.joinable()) {
             m_thread.join();
@@ -87,38 +102,38 @@ public:
     }
 
 private:
+    /*!
+     * \brief The Event class
+     */
     struct Event {
         bool priority;
         callable_t callable;
 
+        Event() = default;
         Event(bool p, callable_t c) : priority(p), callable(std::move(c)) {}
     };
 
-    std::vector<Event> m_events;
-    std::mutex m_mutex;
-    std::condition_variable m_condition;
-    bool m_running{true};
-    std::thread m_thread{&EventLoop::threadFunc, this};
-
-    void processEvents(const std::vector<Event>& events) noexcept {
-        for (const auto& event : events) {
-            try {
-                event.callable();
-            } catch (const std::exception& exc) {
-                std::cerr << "Exception caught: " << exc.what() << std::endl;
-            } catch (...) {
-                std::cerr << "Unexpected exception caught." << std::endl;
-            }
+    /*!
+     * \brief Executes the event callback
+     */
+    void processEvent(Event& event) {
+        try {
+            event.callable();
+        } catch (const std::exception& exc) {
+            std::cerr << "Exception caught: " << exc.what() << std::endl;
+        } catch (...) {
+            std::cerr << "Unexpected exception caught." << std::endl;
         }
     }
 
-    bool isInEventLoopThread() const noexcept {
-        return std::this_thread::get_id() == m_thread.get_id();
-    }
-
-    void threadFunc() noexcept {
-        while (m_running) {
-            std::vector<Event> events;
+    /*!
+     * \brief Threads processes event from the queue, no swap with a reading queue is done
+     */
+    void threadFunc() noexcept
+    {
+        while (m_running)
+        {
+            Event event;
 
             {
                 std::unique_lock<std::mutex> lock(m_mutex);
@@ -126,16 +141,31 @@ private:
                     return !m_events.empty() || !m_running;
                 });
 
-                std::swap(events, m_events);
+                if (!m_running)
+                    break;
+
+                event = m_events.front();
+                m_events.pop_front();
             }
 
-            processEvents(events);
+            processEvent(event);
 
-        }
-        //std::cerr << "EXIT EVENTLOOP" << std::endl;
+        };
+
+        qDebug() << "Exit Loop";
     }
-};
 
+    bool isInEventLoopThread() const noexcept {
+        return std::this_thread::get_id() == m_thread.get_id();
+    }
+
+
+    std::deque<Event> m_events;
+    std::mutex m_mutex;
+    std::condition_variable m_condition;
+    bool m_running{true};
+    std::thread m_thread{&EventLoop::threadFunc, this};
+};
 
 
 #endif // EVENTLOOP_H

@@ -14,7 +14,7 @@ static MyDialog * w {nullptr};
 #include "ut_signalslot.h"
 
 //#define TEST_SIGNALSLOT
-#define TEST_EVENTLOOP
+//#define TEST_EVENTLOOP
 
 int main(int argc, char *argv[])
 {
@@ -29,14 +29,14 @@ int main(int argc, char *argv[])
 #ifdef TEST_EVENTLOOP
     ut_eventloop::test_all();
 
-/*    w = new MyDialog{};
-    w->show();
-    a.exec();
-    delete w;
-*/
+
 
 
 #endif
+       w = new MyDialog{};
+    w->show();
+    a.exec();
+    delete w;
 
     return 0;
 }

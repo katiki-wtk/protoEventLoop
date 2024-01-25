@@ -64,7 +64,7 @@ MyDialog::on_btn_send_clicked()
         m_evLoop->post([str]{
             qDebug() << "MESSAGE EVENT: msg=" << QString::fromStdString(str);
 
-        }, ui->spin_msg_pri->value());
+        }, ui->chbox_pri_msg->isChecked());
     }
 }
 
@@ -79,7 +79,7 @@ MyDialog::keyPressEvent(QKeyEvent *ev)
             qDebug() << "KEYBOARD EVENT: key=" << key;
             QThread::sleep(2);
 
-        }, ui->spin_key_pri->value());
+        }, ui->chbox_pri_kb->isChecked());
         ev->accept();
     }
     else {
@@ -95,7 +95,7 @@ MyDialog::timerEvent(QTimerEvent *ev)
         m_evLoop->post([this]{
             qDebug() << "TIMER EVENT: id=" << m_timerId;
 
-        }, ui->spin_timer_pri->value());
+        }, ui->chbox_pri_timer->isChecked());
     }
     ev->accept();
 }
